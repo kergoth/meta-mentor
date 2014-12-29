@@ -21,9 +21,10 @@ MACHINE ??= "qemux86"
 #TCLIBC = "uclibc"
 
 # The CORE_IMAGE_EXTRA_INSTALL variable allows extra individual packages to be
-# added to any of the "core" images (e.g. core-image-base,
-# core-image-minimal).
-CORE_IMAGE_EXTRA_INSTALL = "oprofile"
+# added to any of the images inheriting core-image.bbclass, including the
+# "core" images (e.g. core-image-base, core-image-minimal) as well as
+# console-image.
+#CORE_IMAGE_EXTRA_INSTALL += "bash"
 
 # The EXTRA_IMAGE_FEATURES variable allows groups of packages to be added to
 # the generated images. Some of these options are added to certain image types
@@ -43,6 +44,8 @@ CORE_IMAGE_EXTRA_INSTALL = "oprofile"
 #  "debug-tweaks"    - make an image suitable for development
 #                      e.g. ssh root access has a blank password
 #  "x11-mini"        - minimal x11 setup, with window manager and terminal
+#  "splash"          - include a splashscreen (default: psplash, but the
+#                      particular package can be set with the SPLASH variable)
 #
 #  These are for particular roles/purposes:
 #
@@ -55,6 +58,11 @@ CORE_IMAGE_EXTRA_INSTALL = "oprofile"
 # details.
 
 EXTRA_IMAGE_FEATURES = "debug-tweaks ssh-server-openssh codebench-debug tools-profile"
+
+# Uncomment to enable runtime testing with ptest
+#USER_FEATURES += "ptest"
+#EXTRA_IMAGE_FEATURES += "ptest-pkgs"
+#CORE_IMAGE_EXTRA_INSTALL += "ptest-runner"
 
 # Uncomment this to enable inclusion of gdbserver in the codebench-debug
 # packagegroup / image feature even when GPLv3 is in INCOMPATIBLE_LICENSE, or
@@ -82,6 +90,11 @@ USER_FEATURES += "~nfc"
 # Uncomment to exclude GPLv3 software from the build
 #INCOMPATIBLE_LICENSE = "GPLv3"
 
+# Uncomment to indicate your acceptance of the Freescale end user license
+# agreement. This is needed to use the proprietary components for Freescale
+# hardware.
+#ACCEPT_FSL_EULA = "1"
+
 # Download files from a mirror
 # Uncomment this INHERIT, and define SOURCE_MIRROR_URL
 #
@@ -93,7 +106,7 @@ USER_FEATURES += "~nfc"
 DL_DIR ?= "${TOPDIR}/downloads"
 
 # Continue to pull downloads from the MEL install
-PREMIRRORS =+ ".*://.*/.* file://${MELDIR}/downloads/ \n "
+PREMIRRORS_prepend = ".*://.*/.* file://${MELDIR}/downloads/ \n "
 
 # BitBake has the capability to accelerate builds based on previously built
 # output. This is done using "shared state" files which can be thought of as
@@ -140,8 +153,12 @@ SDKMACHINE ?= "i686"
 #   - 'image-prelink' in order to prelink the filesystem image
 #   - 'image-swab' to perform host system intrusion detection
 # NOTE: if listing mklibs & prelink both, then make sure mklibs is before prelink
-# NOTE: mklibs also needs to be explicitly enabled for a given image, see local.conf.extended
-USER_CLASSES ?= "buildstats buildstats-summary image-mklibs image-prelink"
+USER_CLASSES ?= "buildstats buildstats-summary image-mklibs"
+
+# To use mklibs, it must also be explicitly enabled for a given image. Note
+# that images built with mklibs will only run the binaries installed at image
+# creation time, as it removes symbols from the libraries
+#MKLIBS_OPTIMIZED_IMAGES ?= "core-image-minimal"
 
 # Interactive shell configuration
 #
@@ -162,6 +179,50 @@ USER_CLASSES ?= "buildstats buildstats-summary image-mklibs image-prelink"
 # Uncomment to automatically spawn a terminal if a patch fails to apply
 #PATCHRESOLVE = "user"
 
+# Archive the source and put them to ${DEPLOY_DIR}/sources/. This is
+# particularly useful for license compliance.
+#
+#INHERIT += "archiver"
+#
+# The tarball for the patched source will be created by default, and you
+# can configure the archiver as follow:
+#
+# Create archive for:
+# 1) original (or unpacked) source:
+#ARCHIVER_MODE[src] = "original"
+# 2) patched source: (default)
+#ARCHIVER_MODE[src] = "patched"
+# 3) configured source:
+#ARCHIVER_MODE[src] = "configured"
+#
+# 4) the patches between do_unpack and do_patch:
+#ARCHIVER_MODE[diff] = "1"
+# set the files that you'd like to exclude from the diff:
+#ARCHIVER_MODE[diff-exclude] ?= ".pc autom4te.cache patches"
+#
+# 5) the environment data, similar to 'bitbake -e recipe':
+#ARCHIVER_MODE[dumpdata] = "1"
+#
+# 6) the recipe (.bb and .inc):
+#ARCHIVER_MODE[recipe] = "1"
+#
+# 7) Whether output the .src.rpm package:
+#ARCHIVER_MODE[srpm] = "1"
+#
+
+# 8) Filter the license, the recipe whose license in COPYLEFT_LICENSE_INCLUDE
+# will be included, and in COPYLEFT_LICENSE_EXCLUDE will be excluded. These
+# variables affect both archiver and copyleft_compliance (similar to archiver,
+# but lighter and less flexible)
+COPYLEFT_LICENSE_INCLUDE = "GPL* LGPL*"
+COPYLEFT_LICENSE_EXCLUDE = "CLOSED Proprietary* Mentor Freescale EULA INTEL NetLogic"
+
+# Alternative to the above archiver class. Doesn't support srpm, patched or
+# configured source, diff generation, metadata, etc. Only emits original
+# pristine source from SRC_URI with patch series file. Upside is it symlinks,
+# so its tasks run very quickly, and it bypasses sstate (binary caching), so
+# we don't bloat up our SSTATE_DIR with source which already lives in DL_DIR.
+#INHERIT += "copyleft_compliance"
 
 # Disk Space Monitoring during the build
 #
@@ -195,9 +256,21 @@ BB_DISKMON_DIRS = "\
 #    file:///some/local/dir \
 #"
 
+# Uncomment following lines to enable sysvinit
+#VIRTUAL-RUNTIME_init_manager = "sysvinit"
+#VIRTUAL-RUNTIME_initscripts = "initscripts"
+#DISTRO_FEATURES_BACKFILL_CONSIDERED = ""
+#DISTRO_FEATURES_remove = " systemd"
+
 # This may be used to abort the build when using an untested/unverified
 # version of the external toolchain.
-#CSL_VER_REQUIRED = "2012.03"
+#SOURCERY_VERSION_REQUIRED = "2012.03"
+
+# Uncomment to enable split-debug filesystem
+#SPLIT_DEBUG_FS = "true"
+#
+# Use this to add extra packages to the split-debug filesystem
+#EXTRA_DEBUG_PACKAGES = "ltrace strace"
 
 # CONF_VERSION is increased each time build/conf/ changes incompatibly and is used to
 # track the version of this file when it was generated. This can safely be ignored if

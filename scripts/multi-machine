@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 #
 # Copyright 2007-2012 Mentor Graphics Corporation
 #
@@ -13,8 +13,9 @@ usage () {
     echo >&2 "  -b BUILDDIR           Specify the build directory. (default: build)"
     echo >&2 "  -o BITBAKE_ARGUMENTS  Specify bitbake args (default: core-image-base)"
     echo >&2 "  -s SETUP_ENVIRONMENT  Specify the setup-environment script to use"
+    echo >&2 "  -a SETUP_ENV_ARGS     Add additional setup-environment args"
     echo >&2 "  -k                    Continue when one build fails"
-    echo >&2 "  -c                    Clean the TMPDIR between builds"
+    echo >&2 "  -c                    Clean the TMPDIR before each build"
     echo >&2 "  -h                    Show this usage information"
     exit 1
 }
@@ -42,9 +43,10 @@ bgrm () {
 builddir=build
 bitbakeopts=core-image-base
 setupscript=$(dirname $0)/../setup-environment
+setupscriptargs=
 continue=0
 clean=0
-while getopts b:o:s:ckh opt; do
+while getopts b:o:s:a:ckh opt; do
     case "$opt" in
         b)
             builddir="$OPTARG"
@@ -54,6 +56,9 @@ while getopts b:o:s:ckh opt; do
             ;;
         s)
             setupscript="$OPTARG"
+            ;;
+        a)
+            setupscriptargs="$OPTARG"
             ;;
         c)
             clean=1
@@ -76,7 +81,7 @@ fi
 bitbakeopts="-k $bitbakeopts"
 topdir=$PWD
 for machine; do
-    . $setupscript -f -b $builddir $machine >/dev/null
+    eval . "$setupscript -f -b $builddir $setupscriptargs $machine"
     echo "Running bitbake $bitbakeopts for $machine.."
     eval bitbake $bitbakeopts
     ret=$?
