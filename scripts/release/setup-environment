@@ -1,0 +1,36 @@
+if [ -z "$ZSH_NAME" ] && [ "x$0" = "x./setup-environment" ]; then
+    echo >&2 "Error: This script needs to be sourced. Please run as '. ./setup-environment'"
+else
+    if [ -n "$BASH_SOURCE" ]; then
+        scriptdir="`dirname $BASH_SOURCE`"
+    elif [ -n "$ZSH_NAME" ]; then
+        scriptdir="`dirname $0`"
+    else
+        scriptdir="`pwd`"
+    fi
+    scriptdir=`readlink -f "$scriptdir"`
+
+    if [ -f conf/local.conf -o -f conf/bblayers.conf ]; then
+        # Assuming we're already in the build dir
+        BUILDDIR=$PWD
+    else
+        BUILDDIR=$PWD/build
+    fi
+
+    for i in $(seq $#); do
+        arg="$(eval printf "%s" "\$$i")"
+        case "$arg" in
+            -b)
+                BUILDDIR="$(eval printf "%s" "\$$(expr $i + 1)")"
+                if [ -z "$BUILDDIR" ]; then
+                    echo >&2 "-b requires an argument"
+                fi
+                ;;
+        esac
+    done
+
+    if "$scriptdir/mel-checkout" "$BUILDDIR"; then
+        cd "$BUILDDIR" && . ./meta-mentor/setup-environment "$@" -b .
+    fi
+fi
+# vim: set ft=sh :
