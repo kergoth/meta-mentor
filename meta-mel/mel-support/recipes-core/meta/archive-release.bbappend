@@ -4,6 +4,9 @@ SRC_URI += "\
     file://setup-environment \
 "
 
+PDK_DISTRO_VERSION ?= "${DISTRO_VERSION}"
+MANIFEST_NAME ?= "${DISTRO}-${PDK_DISTRO_VERSION}-${MACHINE}"
+
 python do_archive_mel_layers () {
     """Archive the layers used to build, as git pack files, with a manifest."""
 
@@ -45,10 +48,10 @@ python do_archive_mel_layers () {
     bb.utils.mkdirhier(mandir)
     objdir = os.path.join(outdir, 'objects', 'pack')
     bb.utils.mkdirhier(objdir)
-    manifestfn = d.expand('%s/${DISTRO}-${DISTRO_VERSION}.manifest' % mandir)
+    manifestfn = d.expand('%s/${MANIFEST_NAME}.manifest' % mandir)
     with open(manifestfn, 'w') as manifest:
         for subdir, path in sorted(to_archive):
-            pack_base, head = git_archive(subdir, objdir, '%s version %s' % (d.getVar('DISTRO'), d.getVar('DISTRO_VERSION')))
+            pack_base, head = git_archive(subdir, objdir, '%s version %s' % (d.getVar('DISTRO'), d.getVar('PDK_DISTRO_VERSION')))
             manifest.write('%s\t%s\t%s\n' % (path, pack_base, head))
             bb.process.run(['tar', '-cf', '%s.tar' % pack_base, 'objects/pack/%s.pack' % pack_base, 'objects/pack/%s.idx' % pack_base], cwd=outdir)
 
@@ -56,7 +59,7 @@ python do_archive_mel_layers () {
     bb.process.run(['mv', manifestfn, outdir])
     bb.process.run(['rm', '-r', 'manifests'], cwd=outdir)
     bb.process.run(['rm', '-r', 'objects'], cwd=outdir)
-    bb.process.run(['tar', '-cf', d.expand('%s/${DISTRO}-${DISTRO_VERSION}-scripts.tar' % outdir), 'mel-checkout', 'setup-environment'], cwd=d.getVar('WORKDIR'))
+    bb.process.run(['tar', '-cf', d.expand('%s/${MANIFEST_NAME}-scripts.tar' % outdir), 'mel-checkout', 'setup-environment'], cwd=d.getVar('WORKDIR'))
 }
 do_archive_mel_layers[vardepsexclude] += "DATE"
 addtask archive_mel_layers after do_patch
