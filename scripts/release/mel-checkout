@@ -50,7 +50,7 @@ manifest="$2"
 if [ -z "$manifest" ]; then
     tmpfile="$(mktemp -t "${0##*/}.XXXXX")"
     trap 'rm -f "$tmpfile"' EXIT INT TERM
-    find "$scriptdir/manifests" -type f -name \*.manifest | grep -v '^addon-' | \
+    find "$scriptdir/manifests" -maxdepth 1 -type f -name \*.manifest | \
         sed 's,^.*/,,' | prompt_choice "Select manifest" >$tmpfile
     manifest="$(cat "$tmpfile")"
     if [ -z "$manifest" ]; then
@@ -63,11 +63,10 @@ mkdir -p "$project"
 cd "$project"
 {
     cat "$scriptdir/manifests/$manifest"
-    for i in "$scriptdir/manifests/"addon-*.manifest; do
-        if [ -e "$i" ]; then
-            cat "$i"
-        fi
-    done
+    find "$scriptdir/manifests/extra" -type f -name \*.manifest 2>/dev/null | \
+        while read -r fn; do
+            cat "$fn"
+        done
 } | while read -r checkout_path pack commit parent_commit; do
     git init "$checkout_path"
     cd "$checkout_path"
