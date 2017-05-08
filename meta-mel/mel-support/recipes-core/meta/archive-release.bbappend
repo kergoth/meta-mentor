@@ -4,11 +4,18 @@ SRC_URI += "\
     file://setup-environment \
 "
 
+inherit layerdirs
+
+# Layers which get their own extra manifests, rather than being included in
+# the main one. How they're combined or shipped from there is up to our
+# release scripts.
+INDIVIDUAL_MANIFEST_LAYERS ?= ""
 PDK_DISTRO_VERSION ?= "${DISTRO_VERSION}"
 MANIFEST_NAME ?= "${DISTRO}-${PDK_DISTRO_VERSION}-${MACHINE}"
 
 python do_archive_mel_layers () {
     """Archive the layers used to build, as git pack files, with a manifest."""
+    import fnmatch
 
     directories = d.getVar('BBLAYERS').split()
     bitbake_path = bb.utils.which(d.getVar('PATH'), 'bitbake')
@@ -20,8 +27,15 @@ python do_archive_mel_layers () {
     topdir = os.path.realpath(d.getVar('TOPDIR'))
     indiv_only = d.getVar('SUBLAYERS_INDIVIDUAL_ONLY').split()
     indiv_only_toplevel = d.getVar('SUBLAYERS_INDIVIDUAL_ONLY_TOPLEVEL').split()
+    indiv_manifests = d.getVar('INDIVIDUAL_MANIFEST_LAYERS').split()
 
-    to_archive = set()
+    layernames = {}
+    for layername in d.getVar('BBFILE_COLLECTIONS').split():
+        layerdir = d.getVar('LAYERDIR_%s' % layername)
+        if layerdir:
+            layernames[layerdir] = layername
+
+    to_archive, indiv_manifest_dirs = set(), set()
     path = d.getVar('PATH') + ':' + ':'.join(os.path.join(l, '..', 'scripts') for l in directories)
     for subdir in directories:
         subdir = os.path.realpath(subdir)
@@ -43,21 +57,33 @@ python do_archive_mel_layers () {
         else:
             to_archive.add((subdir, os.path.basename(subdir)))
 
+        layername = layernames.get(subdir)
+        if layername and any(fnmatch.fnmatchcase(layername, pat) for pat in indiv_manifests):
+            indiv_manifest_dirs.add(subdir)
+
     outdir = d.expand('${S}/deploy')
     mandir = os.path.join(outdir, 'manifests')
     bb.utils.mkdirhier(mandir)
+    bb.utils.mkdirhier(os.path.join(mandir, 'extra'))
     objdir = os.path.join(outdir, 'objects', 'pack')
     bb.utils.mkdirhier(objdir)
     manifestfn = d.expand('%s/${MANIFEST_NAME}.manifest' % mandir)
+    manifests = [manifestfn]
     with open(manifestfn, 'w') as manifest:
         for subdir, path in sorted(to_archive):
             pack_base, head = git_archive(subdir, objdir, '%s version %s' % (d.getVar('DISTRO'), d.getVar('PDK_DISTRO_VERSION')))
-            manifest.write('%s\t%s\t%s\n' % (path, pack_base, head))
+            if subdir in indiv_manifest_dirs:
+                indiv_manifestfn = d.expand('%s/extra/${MANIFEST_NAME}-%s.manifest' % (mandir, path.replace('/', '_')))
+                manifests.append(indiv_manifestfn)
+                with open(indiv_manifestfn, 'w') as indiv_manifest:
+                    indiv_manifest.write('%s\t%s\t%s\n' % (path, pack_base, head))
+            else:
+                manifest.write('%s\t%s\t%s\n' % (path, pack_base, head))
             bb.process.run(['tar', '-cf', '%s.tar' % pack_base, 'objects/pack/%s.pack' % pack_base, 'objects/pack/%s.idx' % pack_base], cwd=outdir)
 
-    bb.process.run(['tar', '-cf', os.path.basename(manifestfn) + '.tar', 'manifests'], cwd=outdir)
-    bb.process.run(['mv', manifestfn, outdir])
-    bb.process.run(['rm', '-r', 'manifests'], cwd=outdir)
+    for fn in manifests:
+        bb.process.run(['tar', '-cf', os.path.basename(fn) + '.tar', os.path.relpath(fn, outdir)], cwd=outdir)
+
     bb.process.run(['rm', '-r', 'objects'], cwd=outdir)
     bb.process.run(['tar', '-cf', d.expand('%s/${DISTRO}-scripts.tar' % outdir), 'mel-checkout', 'setup-environment'], cwd=d.getVar('WORKDIR'))
 }
