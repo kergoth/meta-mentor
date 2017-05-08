@@ -59,7 +59,7 @@ python do_archive_mel_layers () {
     bb.process.run(['mv', manifestfn, outdir])
     bb.process.run(['rm', '-r', 'manifests'], cwd=outdir)
     bb.process.run(['rm', '-r', 'objects'], cwd=outdir)
-    bb.process.run(['tar', '-cf', d.expand('%s/${MANIFEST_NAME}-scripts.tar' % outdir), 'mel-checkout', 'setup-environment'], cwd=d.getVar('WORKDIR'))
+    bb.process.run(['tar', '-cf', d.expand('%s/${DISTRO}-scripts.tar' % outdir), 'mel-checkout', 'setup-environment'], cwd=d.getVar('WORKDIR'))
 }
 do_archive_mel_layers[vardepsexclude] += "DATE"
 addtask archive_mel_layers after do_patch
