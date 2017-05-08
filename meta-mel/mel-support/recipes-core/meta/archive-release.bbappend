@@ -9,7 +9,15 @@ inherit layerdirs
 # Layers which get their own extra manifests, rather than being included in
 # the main one. How they're combined or shipped from there is up to our
 # release scripts.
-INDIVIDUAL_MANIFEST_LAYERS ?= ""
+INDIVIDUAL_MANIFEST_LAYERS ?= " \
+    update-* \
+    mel-security* \
+    selinux \
+    mentor-softing* \
+    meta-mentor-industrial* \
+    meta-mentor-iot* \
+    meta-fastboot* \
+"
 PDK_DISTRO_VERSION ?= "${DISTRO_VERSION}"
 MANIFEST_NAME ?= "${DISTRO}-${PDK_DISTRO_VERSION}-${MACHINE}"
 
