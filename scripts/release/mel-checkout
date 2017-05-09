@@ -81,6 +81,6 @@ for dir in downloads cached-binaries; do
         ln -sf "$scriptdir/$dir" .
     fi
 done
-for i in "$scriptdir"/*/conf/local.conf.sample; do
-    ln -sf "${i%/conf/local.conf.sample}" .
+for i in "$scriptdir"/*/*/conf/local.conf.sample; do
+    ln -sf "${i%/*/conf/local.conf.sample}" .
 done

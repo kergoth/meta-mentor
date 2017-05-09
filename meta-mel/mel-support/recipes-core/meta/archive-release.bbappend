@@ -20,6 +20,7 @@ INDIVIDUAL_MANIFEST_LAYERS ?= " \
 "
 PDK_DISTRO_VERSION ?= "${DISTRO_VERSION}"
 MANIFEST_NAME ?= "${DISTRO}-${PDK_DISTRO_VERSION}-${MACHINE}"
+BSPFILES_INSTALL_PATH = "${MACHINE}/${PDK_DISTRO_VERSION}"
 
 python do_archive_mel_layers () {
     """Archive the layers used to build, as git pack files, with a manifest."""
