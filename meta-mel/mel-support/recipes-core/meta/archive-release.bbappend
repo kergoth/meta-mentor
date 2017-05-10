@@ -78,9 +78,10 @@ python do_archive_mel_layers () {
     bb.utils.mkdirhier(objdir)
     manifestfn = d.expand('%s/${MANIFEST_NAME}.manifest' % mandir)
     manifests = [manifestfn]
+    message = '%s release' % d.getVar('DISTRO')
     with open(manifestfn, 'w') as manifest:
         for subdir, path in sorted(to_archive):
-            pack_base, head = git_archive(subdir, objdir, '%s version %s' % (d.getVar('DISTRO'), d.getVar('PDK_DISTRO_VERSION')))
+            pack_base, head = git_archive(subdir, objdir, message)
             if subdir in indiv_manifest_dirs:
                 indiv_manifestfn = d.expand('%s/extra/${MANIFEST_NAME}-%s.manifest' % (mandir, path.replace('/', '_')))
                 manifests.append(indiv_manifestfn)
@@ -130,12 +131,33 @@ def git_archive(subdir, outdir, message=None):
 
         bb.process.run(gitcmd + ['add', '-A', '.'], cwd=subdir)
         tree = bb.process.run(gitcmd + ['write-tree'])[0].rstrip()
+
+        env = {
+            'GIT_AUTHOR_NAME': 'Build User',
+            'GIT_AUTHOR_EMAIL': 'build_user@build_host',
+            'GIT_COMMITTER_NAME': 'Build User',
+            'GIT_COMMITTER_EMAIL': 'build_user@build_host',
+        }
         if parent:
-            head = bb.process.run(gitcmd + ['commit-tree', '-m', message, '-p', parent_head, tree])[0].rstrip()
+            # Walk the commits until we get a date, as merges don't seem to
+            # report a commit date.
+            cdate, distance = None, 0
+            while not cdate:
+                try:
+                    cdate = bb.process.run(['git', 'diff-tree', '--pretty=format:%ct', '-s', 'HEAD~%d' % distance], cwd=subdir)[0]
+                except bb.process.CmdError:
+                    break
+                distance += 1
+
+            penv = dict(env)
+            if cdate:
+                penv.update(GIT_AUTHOR_DATE=cdate, GIT_COMMITTER_DATE=cdate)
+
+            head = bb.process.run(gitcmd + ['commit-tree', '-m', message, '-p', parent_head, tree], env=penv)[0].rstrip()
             with open(os.path.join(tmpdir, 'shallow'), 'w') as f:
                 f.write(head + '\n')
         else:
-            head = bb.process.run(gitcmd + ['commit-tree', '-m', message, tree])[0].rstrip()
+            head = bb.process.run(gitcmd + ['commit-tree', '-m', message, tree], env=env)[0].rstrip()
 
         # We need a ref to ensure repack includes the new commit, as it
         # does not include dangling objects in the pack.
