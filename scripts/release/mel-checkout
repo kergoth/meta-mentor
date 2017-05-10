@@ -42,20 +42,24 @@ prompt_choice () {
     rm -f "$prompt_options"
 }
 
-# TODO: record what manifest was used
 scriptdir="$(cd "$(dirname "$0")" && pwd -P)"
 project="$1"
 manifest="$2"
 
 if [ -z "$manifest" ]; then
-    tmpfile="$(mktemp -t "${0##*/}.XXXXX")"
-    trap 'rm -f "$tmpfile"' EXIT INT TERM
-    find "$scriptdir/manifests" -maxdepth 1 -type f -name \*.manifest | \
-        sed 's,^.*/,,' | prompt_choice "Select manifest" >$tmpfile
-    manifest="$(cat "$tmpfile")"
-    if [ -z "$manifest" ]; then
-        echo >&2 "Error: no manifest found, please specify"
-        exit 1
+    if [ -e "$project/.manifest" ]; then
+        manifest="$(cat "$project/.manifest")"
+        echo >&2 "Using manifest $manifest for $project"
+    else
+        tmpfile="$(mktemp -t "${0##*/}.XXXXX")"
+        trap 'rm -f "$tmpfile"' EXIT INT TERM
+        find "$scriptdir/manifests" -maxdepth 1 -type f -name \*.manifest | \
+            sed 's,^.*/,,' | prompt_choice "Select manifest" >$tmpfile
+        manifest="$(cat "$tmpfile")"
+        if [ -z "$manifest" ]; then
+            echo >&2 "Error: no manifest found, please specify"
+            exit 1
+        fi
     fi
 fi
 
@@ -75,6 +79,7 @@ cd "$project"
     echo "$commit" >.git/shallow
     cd - >/dev/null
 done
+echo "$manifest" >.manifest
 
 for dir in downloads cached-binaries; do
     if [ -e "$scriptdir/$dir" ]; then
