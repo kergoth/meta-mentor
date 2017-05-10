@@ -29,8 +29,7 @@ else
         esac
     done
 
-    if "$scriptdir/mel-checkout" "$BUILDDIR"; then
+    "$scriptdir/mel-checkout" "$BUILDDIR" && \
         cd "$BUILDDIR" && . ./meta-mentor/setup-environment "$@" -b .
-    fi
 fi
 # vim: set ft=sh :
