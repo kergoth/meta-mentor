@@ -95,7 +95,20 @@ python do_archive_mel_layers () {
         bb.process.run(['tar', '-cf', os.path.basename(fn) + '.tar', os.path.relpath(fn, outdir)], cwd=outdir)
 
     bb.process.run(['rm', '-r', 'objects'], cwd=outdir)
-    bb.process.run(['tar', '-cf', d.expand('%s/${DISTRO}-scripts.tar' % outdir), 'mel-checkout', 'setup-environment'], cwd=d.getVar('WORKDIR'))
+
+    workdir = d.getVar('WORKDIR')
+    with open(os.path.join(workdir, 'setup-mel'), 'w') as sm:
+        with open(os.path.join(workdir, 'mel-checkout'), 'r') as mc:
+            with open(os.path.join(workdir, 'setup-environment'), 'r') as se:
+                sm.write('mel_checkout () {\n')
+                sm.write('  (\n')
+                sm.write(mc.read())
+                sm.write('  )\n')
+                sm.write('}\n')
+                sm.write(se.read().replace('"$scriptdir/mel-checkout"', 'mel_checkout'))
+                sm.write('unset mel_checkout')
+    bb.process.run(['chmod', '+x', 'setup-mel'], cwd=workdir)
+    bb.process.run(['tar', '-cf', d.expand('%s/${DISTRO}-scripts.tar' % outdir), 'setup-mel'], cwd=workdir)
 }
 do_archive_mel_layers[vardepsexclude] += "DATE"
 addtask archive_mel_layers after do_patch
