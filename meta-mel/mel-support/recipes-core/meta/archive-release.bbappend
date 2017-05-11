@@ -24,6 +24,7 @@ BSPFILES_INSTALL_PATH = "${MACHINE}/${PDK_DISTRO_VERSION}"
 
 python do_archive_mel_layers () {
     """Archive the layers used to build, as git pack files, with a manifest."""
+    import collections
     import fnmatch
 
     directories = d.getVar('BBLAYERS').split()
@@ -79,20 +80,22 @@ python do_archive_mel_layers () {
     manifestfn = d.expand('%s/${MANIFEST_NAME}.manifest' % mandir)
     manifests = [manifestfn]
     message = '%s release' % d.getVar('DISTRO')
-    with open(manifestfn, 'w') as manifest:
-        for subdir, path in sorted(to_archive):
-            pack_base, head = git_archive(subdir, objdir, message)
-            if subdir in indiv_manifest_dirs:
-                indiv_manifestfn = d.expand('%s/extra/${MANIFEST_NAME}-%s.manifest' % (mandir, path.replace('/', '_')))
-                manifests.append(indiv_manifestfn)
-                with open(indiv_manifestfn, 'w') as indiv_manifest:
-                    indiv_manifest.write('%s\t%s\t%s\n' % (path, pack_base, head))
-            else:
-                manifest.write('%s\t%s\t%s\n' % (path, pack_base, head))
-            bb.process.run(['tar', '-cf', '%s.tar' % pack_base, 'objects/pack/%s.pack' % pack_base, 'objects/pack/%s.idx' % pack_base], cwd=outdir)
 
-    for fn in manifests:
+    manifestdata = collections.defaultdict(list)
+    for subdir, path in sorted(to_archive):
+        pack_base, head = git_archive(subdir, objdir, message)
+        if subdir in indiv_manifest_dirs:
+            fn = d.expand('%s/extra/${MANIFEST_NAME}-%s.manifest' % (mandir, path.replace('/', '_')))
+        else:
+            fn = manifestfn
+        manifestdata[fn].append('\t'.join((path, pack_base, head)) + '\n')
+        bb.process.run(['tar', '-cf', '%s.tar' % pack_base, 'objects/pack/%s.pack' % pack_base, 'objects/pack/%s.idx' % pack_base], cwd=outdir)
+
+    for fn, lines in manifestdata.items():
+        with open(fn, 'w') as manifest:
+            manifest.writelines(lines)
         bb.process.run(['tar', '-cf', os.path.basename(fn) + '.tar', os.path.relpath(fn, outdir)], cwd=outdir)
+
 
     bb.process.run(['rm', '-r', 'objects'], cwd=outdir)
 
