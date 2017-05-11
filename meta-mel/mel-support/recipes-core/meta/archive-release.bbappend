@@ -83,12 +83,12 @@ python do_archive_mel_layers () {
 
     manifestdata = collections.defaultdict(list)
     for subdir, path in sorted(to_archive):
-        pack_base, head = git_archive(subdir, objdir, message)
+        pack_base, head, remote = git_archive(subdir, objdir, message)
         if subdir in indiv_manifest_dirs:
             fn = d.expand('%s/extra/${MANIFEST_NAME}-%s.manifest' % (mandir, path.replace('/', '_')))
         else:
             fn = manifestfn
-        manifestdata[fn].append('\t'.join((path, pack_base, head)) + '\n')
+        manifestdata[fn].append('\t'.join((path, pack_base, head, remote)) + '\n')
         bb.process.run(['tar', '-cf', '%s.tar' % pack_base, 'objects/pack/%s.pack' % pack_base, 'objects/pack/%s.idx' % pack_base], cwd=outdir)
 
     for fn, lines in manifestdata.items():
@@ -155,6 +155,8 @@ def git_archive(subdir, outdir, message=None):
             'GIT_COMMITTER_EMAIL': 'build_user@build_host',
         }
         if parent:
+            remote = bb.process.run(['git', 'config', 'remote.origin.url'], cwd=subdir)[0].rstrip()
+
             # Walk the commits until we get a date, as merges don't seem to
             # report a commit date.
             cdate, distance = None, 0
@@ -173,6 +175,7 @@ def git_archive(subdir, outdir, message=None):
             with open(os.path.join(tmpdir, 'shallow'), 'w') as f:
                 f.write(head + '\n')
         else:
+            remote = ''
             head = bb.process.run(gitcmd + ['commit-tree', '-m', message, tree], env=env)[0].rstrip()
 
         # We need a ref to ensure repack includes the new commit, as it
@@ -186,5 +189,5 @@ def git_archive(subdir, outdir, message=None):
         packfiles = glob.glob(os.path.join(packdir, 'pack-*'))
         base, ext = os.path.splitext(os.path.basename(packfiles[0]))
         bb.process.run(['cp', '-f'] + packfiles + [outdir])
-        return base, head
+        return base, head, remote
 
