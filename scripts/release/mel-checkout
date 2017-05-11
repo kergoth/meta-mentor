@@ -71,7 +71,7 @@ cd "$project"
         while read -r fn; do
             cat "$fn"
         done
-} | while read -r checkout_path pack commit remote; do
+} | while read -r checkout_path commit remote; do
     git init "$checkout_path"
     cd "$checkout_path"
     echo "$scriptdir/objects" >.git/objects/info/alternates
@@ -84,7 +84,7 @@ cd "$project"
     # Create branches for any other manifests, for reference
     for otherfn in "$scriptdir/manifests/"*.manifest; do
         if [ "$otherfn" != "$scriptdir/manifests/$manifest" ]; then
-            while read -r other_checkout_path _ other_commit _; do
+            while read -r other_checkout_path other_commit _; do
                 if [ "$other_checkout_path" = "$checkout_path" ]; then
                     git branch "$(basename "${otherfn%.manifest}")" "$other_commit"
                     echo "$other_commit" >>.git/shallow

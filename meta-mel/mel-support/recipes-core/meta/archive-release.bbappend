@@ -89,7 +89,7 @@ python do_archive_mel_layers () {
             fn = d.expand('%s/extra/${MANIFEST_NAME}-%s.manifest' % (mandir, path.replace('/', '_')))
         else:
             fn = manifestfn
-        manifestdata[fn].append('\t'.join((path, pack_base, head, remote)) + '\n')
+        manifestdata[fn].append('\t'.join((path, head, remote)) + '\n')
         bb.process.run(['tar', '-cf', '%s.tar' % pack_base, 'objects/pack/%s.pack' % pack_base, 'objects/pack/%s.idx' % pack_base], cwd=outdir)
 
     infofn = d.expand('%s/${MANIFEST_NAME}.info' % mandir)
