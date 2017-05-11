@@ -80,6 +80,18 @@ cd "$project"
         git remote add origin "$remote"
     fi
     git checkout -b "$(basename "${manifest%.manifest}")" "$commit"
+
+    # Create branches for any other manifests, for reference
+    for otherfn in "$scriptdir/manifests/"*.manifest; do
+        if [ "$otherfn" != "$scriptdir/manifests/$manifest" ]; then
+            while read -r other_checkout_path _ other_commit _; do
+                if [ "$other_checkout_path" = "$checkout_path" ]; then
+                    git branch "$(basename "${otherfn%.manifest}")" "$other_commit"
+                    echo "$other_commit" >>.git/shallow
+                fi
+            done <"$otherfn"
+        fi
+    done
     cd - >/dev/null
 done
 echo "$manifest" >.manifest
