@@ -25,6 +25,7 @@ BSPFILES_INSTALL_PATH = "${MACHINE}/${PDK_DISTRO_VERSION}"
 python do_archive_mel_layers () {
     """Archive the layers used to build, as git pack files, with a manifest."""
     import collections
+    import configparser
     import fnmatch
 
     directories = d.getVar('BBLAYERS').split()
@@ -91,11 +92,19 @@ python do_archive_mel_layers () {
         manifestdata[fn].append('\t'.join((path, pack_base, head, remote)) + '\n')
         bb.process.run(['tar', '-cf', '%s.tar' % pack_base, 'objects/pack/%s.pack' % pack_base, 'objects/pack/%s.idx' % pack_base], cwd=outdir)
 
+    infofn = d.expand('%s/${MANIFEST_NAME}.info' % mandir)
+    with open(infofn, 'w') as infofile:
+        c = configparser.ConfigParser()
+        c['DEFAULT'] = {'bspfiles_path': d.getVar('BSPFILES_INSTALL_PATH')}
+        c.write(infofile)
+
     for fn, lines in manifestdata.items():
         with open(fn, 'w') as manifest:
             manifest.writelines(lines)
-        bb.process.run(['tar', '-cf', os.path.basename(fn) + '.tar', os.path.relpath(fn, outdir)], cwd=outdir)
-
+            files = [os.path.relpath(fn, outdir)]
+            if fn == manifestfn:
+                files.append(os.path.relpath(infofn, outdir))
+        bb.process.run(['tar', '-cf', os.path.basename(fn) + '.tar'] + files, cwd=outdir)
 
     bb.process.run(['rm', '-r', 'objects'], cwd=outdir)
 

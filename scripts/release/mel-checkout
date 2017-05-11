@@ -101,6 +101,24 @@ for dir in downloads cached-binaries; do
         ln -sf "$scriptdir/$dir" .
     fi
 done
-for i in "$scriptdir"/*/*/conf/local.conf.sample; do
-    ln -sf "${i%/*/conf/local.conf.sample}" .
-done
+
+if [ -e "$scriptdir/manifests/${manifest%.manifest}.info" ]; then
+    bspfiles_path="$(sed -n -e 's/^bspfiles_path = //p' "$scriptdir/manifests/${manifest%.manifest}.info")"
+else
+    bspfiles_path=
+fi
+if [ -n "$bspfiles_path" ]; then
+    if [ -e "$scriptdir/$bspfiles_path" ]; then
+        mkdir -p "$(dirname "$bspfiles_path")"
+        ln -sf "$scriptdir/$bspfiles_path" "$bspfiles_path"
+    else
+        echo >&2 "Warning: specified bspfiles_path from ${manifest%.manifest}.info does not exist"
+        for i in "$scriptdir"/*/*/conf/local.conf.sample; do
+            ln -sf "${i%/*/conf/local.conf.sample}" .
+        done
+    fi
+else
+    for i in "$scriptdir"/*/*/conf/local.conf.sample; do
+        ln -sf "${i%/*/conf/local.conf.sample}" .
+    done
+fi
