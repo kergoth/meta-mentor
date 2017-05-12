@@ -67,11 +67,8 @@ mkdir -p "$project"
 cd "$project"
 {
     cat "$scriptdir/manifests/$manifest"
-    find "$scriptdir/manifests/extra" -type f -name \*.manifest 2>/dev/null | \
-        while read -r fn; do
-            cat "$fn"
-        done
-} | while read -r checkout_path commit remote; do
+    cat "$scriptdir/manifests/extra/"*.manifest 2>/dev/null || :
+} | sort -u | while read -r checkout_path commit remote; do
     git init "$checkout_path"
     cd "$checkout_path"
     echo "$scriptdir/objects" >.git/objects/info/alternates
