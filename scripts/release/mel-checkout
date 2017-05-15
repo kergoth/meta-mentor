@@ -59,6 +59,8 @@ if [ -z "$manifest" ]; then
         if [ -z "$manifest" ]; then
             echo >&2 "Error: no manifest found, please specify"
             exit 1
+        else
+            manifest="$scriptdir/manifests/$manifest"
         fi
     fi
 fi
@@ -76,19 +78,18 @@ cd "$project"
     if [ -n "$remote" ]; then
         git remote add origin "$remote"
     fi
-    git checkout -b "$(basename "${manifest%.manifest}")" "$commit"
 
-    # Create branches for any other manifests, for reference
-    for otherfn in "$scriptdir/manifests/"*.manifest; do
-        if [ "$otherfn" != "$manifest" ]; then
-            while read -r other_checkout_path other_commit _; do
-                if [ "$other_checkout_path" = "$checkout_path" ]; then
-                    git branch "$(basename "${otherfn%.manifest}")" "$other_commit"
-                    echo "$other_commit" >>.git/shallow
-                fi
-            done <"$otherfn"
-        fi
+    # Create branches for all manifests, for reference
+    for otherfn in "$manifest" "$scriptdir/manifests/"*.manifest; do
+        while read -r other_checkout_path other_commit _; do
+            if [ "$other_checkout_path" = "$checkout_path" ]; then
+                git branch "$(basename "${otherfn%.manifest}")" "$other_commit"
+                echo "$other_commit" >>.git/shallow
+            fi
+        done <"$otherfn"
     done
+    git checkout "$(basename "${manifest%.manifest}")"
+
     cd - >/dev/null
 done
 echo "$manifest" >.manifest
