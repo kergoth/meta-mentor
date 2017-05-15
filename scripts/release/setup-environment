@@ -50,9 +50,10 @@ EOF
     mel_argnum=1
     while [ $mel_argnum -le $# ]; do
         mel_arg="$(eval printf "%s" "\$$mel_argnum")"
+        mel_argnum="$(expr $mel_argnum + 1)"
         case "$mel_arg" in
             -b)
-                BUILDDIR="$(eval printf "%s" "\$$(expr $mel_argnum + 1)")"
+                BUILDDIR="$(eval printf "%s" "\$$mel_argnum")"
                 if [ -z "$BUILDDIR" ]; then
                     echo >&2 "-b requires an argument"
                     mel_fail=1
@@ -61,8 +62,7 @@ EOF
                 fi
                 ;;
             -m)
-                mel_manifest="$(eval printf "%s" "\$$(expr $mel_argnum + 1)")"
-                mel_argnum="$(expr $mel_argnum + 1)"
+                mel_manifest="$(eval printf "%s" "\$$mel_argnum")"
                 if [ -z "$mel_manifest" ]; then
                     echo >&2 "-m requires an argument"
                     mel_fail=1
@@ -77,9 +77,20 @@ EOF
                 fi
                 continue
                 ;;
+            -h|-\?)
+                echo >&2 "Usage: . setup-environment [options]"
+                echo >&2
+                echo >&2 "Options:"
+                echo >&2 "  -b BUILDDIR  Specify a build directory, default 'build'"
+                echo >&2 "  -m MANIFEST  Specify a manifest, rather than interactive selection"
+                echo >&2 "  -h           Show this usage information"
+                echo >&2
+                echo >&2 "All other options are passed directly to the meta-mentor setup scripts"
+                mel_fail=1
+                continue
+                ;;
         esac
         mel_save "$mel_arg"
-        mel_argnum="$(expr $mel_argnum + 1)"
     done
     eval set -- "$mel_saved"
     unset mel_saved mel_argnum mel_arg
