@@ -66,7 +66,7 @@ fi
 mkdir -p "$project"
 cd "$project"
 {
-    cat "$scriptdir/manifests/$manifest"
+    cat "$manifest"
     cat "$scriptdir/manifests/extra/"*.manifest 2>/dev/null || :
 } | sort -u | while read -r checkout_path commit remote; do
     git init "$checkout_path"
@@ -80,7 +80,7 @@ cd "$project"
 
     # Create branches for any other manifests, for reference
     for otherfn in "$scriptdir/manifests/"*.manifest; do
-        if [ "$otherfn" != "$scriptdir/manifests/$manifest" ]; then
+        if [ "$otherfn" != "$manifest" ]; then
             while read -r other_checkout_path other_commit _; do
                 if [ "$other_checkout_path" = "$checkout_path" ]; then
                     git branch "$(basename "${otherfn%.manifest}")" "$other_commit"
@@ -99,8 +99,8 @@ for dir in downloads cached-binaries; do
     fi
 done
 
-if [ -e "$scriptdir/manifests/${manifest%.manifest}.info" ]; then
-    bspfiles_path="$(sed -n -e 's/^bspfiles_path = //p' "$scriptdir/manifests/${manifest%.manifest}.info")"
+if [ -e "${manifest%.manifest}.info" ]; then
+    bspfiles_path="$(sed -n -e 's/^bspfiles_path = //p' "${manifest%.manifest}.info")"
     if [ -n "$bspfiles_path" ] && [ -e "$scriptdir/$bspfiles_path" ]; then
         rm -f "${bspfiles_path%/*}"
         ln -s "$scriptdir/$bspfiles_path" "${bspfiles_path%/*}"
