@@ -27,6 +27,12 @@ prompt_choice () {
         return 2
     fi
 
+    if [ -n "$prompt_default" ] && \
+            ! echo "$prompt_default" | grep -q '^[0-9]*'; then
+        printf >&2 'Error: prompt_default value '%s' is invalid, default must be a selection number.\n' "$prompt_default"
+        prompt_default=
+    fi
+
     while [ -z "$prompt_value" ]; do
         prompt_num=0
         while read choice; do
@@ -34,9 +40,17 @@ prompt_choice () {
             eval prompt_value_${prompt_num}="$choice"
             printf >&2 "%s) %s\n" "$prompt_num" "$choice"
         done <"$prompt_options"
-        printf >&2 "%s: " "$prompt_message"
+
+        if [ -n "$prompt_default" ]; then
+            printf >&2 "%s [%s]: " "$prompt_message" "$prompt_default"
+        else
+            printf >&2 "%s: " "$prompt_message"
+        fi
         read selection </dev/tty
         prompt_value="$(eval echo \${prompt_value_$selection})"
+        if [ -n "$prompt_default" ] && [ -z "$prompt_value" ]; then
+            prompt_value="$(eval echo \${prompt_value_$prompt_default})"
+        fi
     done
     printf "%s\n" "$prompt_value"
     rm -f "$prompt_options"
@@ -54,7 +68,7 @@ if [ -z "$manifest" ]; then
         tmpfile="$(mktemp -t "${0##*/}.XXXXX")"
         trap 'rm -f "$tmpfile"' EXIT INT TERM
         find "$scriptdir/manifests" -maxdepth 1 -type f -name \*.manifest | \
-            sed 's,^.*/,,' | sort -rn | prompt_choice "Select manifest" >$tmpfile
+            sed 's,^.*/,,' | sort -rn | prompt_choice "Select manifest" 1 >$tmpfile
         manifest="$(cat "$tmpfile")"
         if [ -z "$manifest" ]; then
             echo >&2 "Error: no manifest found, please specify"
