@@ -23,6 +23,26 @@ MANIFEST_NAME ?= "${DISTRO}-${PDK_DISTRO_VERSION}-${MACHINE}"
 BSPFILES_INSTALL_PATH = "${MACHINE}/${PDK_DISTRO_VERSION}"
 INCLUDE_REMOTE_HOOK ?= ""
 
+MEL_PUBLIC_GITHUB_REPOS = "meta-mentor meta-sourcery poky bitbake openembedded-core"
+
+def mel_should_include_remote(subdir, d):
+    """Any non-public github repo or url including a mentor domain
+    are considered private, so no remote is included.
+    """
+    url = bb.process.run(['git', 'config', 'remote.origin.url'], cwd=subdir)[0].rstrip()
+    if url:
+        url = url.replace('.git', '')
+        if 'MentorEmbedded' in url and not any(url.endswith('/' + i) for i in d.getVar('MEL_PUBLIC_GITHUB_REPOS').split()):
+            # Private github repo
+            return False
+        elif 'mentor.com' in url or 'mentorg.com' in url:
+            # Internal repo
+            return False
+        return True
+    return False
+
+INCLUDE_REMOTE_HOOK_mel ?= "mel_should_include_remote"
+
 python do_archive_mel_layers () {
     """Archive the layers used to build, as git pack files, with a manifest."""
     import collections
