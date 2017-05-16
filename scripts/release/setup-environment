@@ -81,11 +81,18 @@ EOF
                 echo >&2 "Usage: . setup-environment [options]"
                 echo >&2
                 echo >&2 "Options:"
-                echo >&2 "  -b BUILDDIR  Specify a build directory, default 'build'"
+                echo >&2 "  -b BUILDDIR  Specify the build directory to create (default: 'build'))"
                 echo >&2 "  -m MANIFEST  Specify a manifest, rather than interactive selection"
                 echo >&2 "  -h           Show this usage information"
                 echo >&2
                 echo >&2 "All other options are passed directly to the meta-mentor setup scripts"
+                if [ -e "$BUILDDIR/meta-mentor/setup-environment" ]; then
+                    echo >&2
+                    echo >&2 "Usage for the underlying meta-mentor setup script:"
+                    echo >&2
+                    . "$BUILDDIR/meta-mentor/setup-environment" -h 2>&1 | \
+                        sed -ne '/^Options:/{n; n; :s; p; n; b s;}'
+                fi
                 mel_fail=1
                 continue
                 ;;
