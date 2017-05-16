@@ -20,6 +20,7 @@ INDIVIDUAL_MANIFEST_LAYERS ?= " \
 "
 PDK_DISTRO_VERSION ?= "${DISTRO_VERSION}"
 MANIFEST_NAME ?= "${DISTRO}-${PDK_DISTRO_VERSION}-${MACHINE}"
+EXTRA_MANIFEST_NAME ?= "${DISTRO}-${PDK_DISTRO_VERSION}"
 BSPFILES_INSTALL_PATH = "${MACHINE}/${PDK_DISTRO_VERSION}"
 GET_REMOTES_HOOK ?= ""
 
@@ -146,7 +147,9 @@ python do_archive_mel_layers () {
             bb.warn('Skipping remotes for %s' % path)
 
         if subdir in indiv_manifest_dirs:
-            fn = d.expand('%s/extra/${MANIFEST_NAME}-%s.manifest' % (mandir, path.replace('/', '_')))
+            name = path.replace('/', '_')
+            bb.utils.mkdirhier(os.path.join(mandir, 'extra', name))
+            fn = d.expand('%s/extra/%s/${EXTRA_MANIFEST_NAME}-%s.manifest' % (mandir, name, name))
         else:
             fn = manifestfn
         manifestdata[fn].append('\t'.join([path, head] + ['%s=%s' % (k,v) for k,v in remotes.items()]) + '\n')

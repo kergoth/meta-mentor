@@ -59,42 +59,68 @@ prompt_choice () {
     rm -f "$prompt_options"
 }
 
+prompt_manifest() {
+    find "$1" -maxdepth 1 -type f -name \*.manifest | \
+        sed 's,^.*/,,' | sort -rn | \
+        ( set +u; prompt_choice "$2" 1; ) | sed "s,^,$1/,"
+}
+
+
 if [ $# -eq 0 ] || [ "$1" = "-h" ]; then
-    echo >&2 "Usage: ${0##*/} BUILD_DIR [MANIFEST_FILE]"
+    echo >&2 "Usage: ${0##*/} BUILD_DIR [MANIFEST_FILE [EXTRA_MANIFEST_FILES..]]"
     echo >&2
     echo >&2 "If no manifest file is specified, a prompt will be shown to"
     echo >&2 "interactively select one of the manifests in the same mel"
-    echo >&2 "installation as this script."
+    echo >&2 "installation as this script. If no extra manifest files are"
+    echo >&2 "specified, a prompt will be shown for each type."
     exit 1
 fi
 
 scriptdir="$(cd "$(dirname "$0")" && pwd -P)"
 project="$1"
-manifest="${2:-}"
+shift
 
 mkdir -p "$project"
 cd "$project"
 
-if [ -z "$manifest" ]; then
+manifest="$1"
+if [ -z "$1" ]; then
     if ! [ -e "$project/.manifest" ]; then
-        find "$scriptdir/manifests" -maxdepth 1 -type f -name \*.manifest | \
-            sed 's,^.*/,,' | sort -rn | ( set +u; prompt_choice "Select manifest" 1; ) | sed "s,^,$scriptdir/manifests/," >"$project/.manifest"
+        prompt_manifest "$scriptdir/manifests" "Select manifest" >"$project/.manifest"
         if ! [ -s "$project/.manifest" ]; then
             echo >&2 "Error: no manifest found, please specify"
             rm -f "$project/.manifest"
             exit 1
         fi
     fi
-    manifest="$(cat "$project/.manifest")"
-    echo >&2 "Using manifest $manifest for $project"
+    set -- $(cat "$project/.manifest")
+    manifest="$1"
 else
     echo "$manifest" >"$project/.manifest"
 fi
 
-{
-    cat "$manifest"
-    cat "$scriptdir/manifests/extra/"*.manifest 2>/dev/null || :
-} | sort -u | while read -r checkout_path commit remotes; do
+if [ $# -lt 2 ]; then
+    extra_base="$scriptdir/manifests/extra"
+    for extra_dir in "$extra_base"/*/; do
+        if [ -d "$extra_dir" ]; then
+            extra_dir="${extra_dir%/}"
+            name="${extra_dir#$extra_base/}"
+            extra_manifest="$(prompt_manifest "$extra_dir" "Select manifest for $name")"
+            if [ -z "$extra_manifest" ]; then
+                echo >&2 "Error: no extra manifest for $name?"
+                exit 1
+            else
+                set -- "$@" "$extra_manifest"
+                echo "$extra_manifest" >>"$project/.manifest"
+            fi
+        fi
+    done
+elif [ "$2" = "" ]; then
+    # Extra manifests explicitly disabled, do not prompt or use
+    set -- "$1"
+fi
+
+cat "$@" | sort -u | while read -r checkout_path commit remotes; do
     if [ ! -d "$checkout_path/.git" ]; then
         git init "$checkout_path"
     fi
@@ -117,7 +143,7 @@ fi
     for otherfn in "$scriptdir/manifests/"*.manifest; do
         while read -r other_checkout_path other_commit _; do
             if [ "$other_checkout_path" = "$checkout_path" ]; then
-                branch="$(basename "${otherfn%.manifest}")" 
+                branch="$(basename "${otherfn%.manifest}")"
                 if ! git rev-parse -q --verify "refs/heads/$branch" >/dev/null; then
                     git update-ref "refs/heads/$branch" "$other_commit"
                 fi
