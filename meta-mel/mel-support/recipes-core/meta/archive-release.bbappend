@@ -39,7 +39,7 @@ def mel_get_remotes(subdir, d):
     if not url:
         return None
 
-    remotes = {'origin': url}
+    remotes = {}
     test_url = url.replace('.git', '')
     public_repos = d.getVar('MEL_PUBLIC_GITHUB_REPOS').split()
     if 'MentorEmbedded' in test_url:
@@ -47,6 +47,10 @@ def mel_get_remotes(subdir, d):
             # Private github repo
             return None
         else:
+            # For the public layers, we want the user to be able to fetch
+            # anonymously, not just with ssh
+            url = url.replace('ssh://git@', 'https://')
+
             forked_repos = d.getVar('MENTOR_FORKED_REPOS').split()
             for f in forked_repos:
                 if test_url.endswith('/' + f):
@@ -58,6 +62,7 @@ def mel_get_remotes(subdir, d):
         # Internal repo
         return None
 
+    remotes['origin'] = url
     return remotes
 
 GET_REMOTES_HOOK_mel ?= "mel_get_remotes"
