@@ -120,50 +120,9 @@ elif [ "$2" = "" ]; then
     set -- "$1"
 fi
 
-cat "$@" | sort -u | while read -r checkout_path commit remotes; do
-    if [ ! -d "$checkout_path/.git" ]; then
-        git init "$checkout_path"
-    fi
-
-    cd "$checkout_path"
-    echo "$scriptdir/objects" >.git/objects/info/alternates
-    echo "$commit" >.git/shallow
-
-    echo "$remotes" | tr '\t' '\n' | while IFS== read -r name url; do
-        if [ -n "$name" ]; then
-            if git remote | grep -qxF "$name"; then
-                git remote set-url "$name" "$url"
-            else
-                git remote add "$name" "$url"
-            fi
-        fi
-    done
-
-    # Create branches for all manifests, for reference
-    for otherfn in "$scriptdir/manifests/"*.manifest; do
-        while read -r other_checkout_path other_commit _; do
-            if [ "$other_checkout_path" = "$checkout_path" ]; then
-                branch="$(basename "${otherfn%.manifest}")"
-                if ! git rev-parse -q --verify "refs/heads/$branch" >/dev/null; then
-                    git update-ref "refs/heads/$branch" "$other_commit"
-                fi
-                echo "$other_commit" >>.git/shallow
-            fi
-        done <"$otherfn"
-    done
-    branch="$(basename "${manifest%.manifest}")"
-    if ! git rev-parse -q --verify "refs/heads/$branch" >/dev/null; then
-        git update-ref "refs/heads/$branch" "$commit"
-    fi
-    if [ "$(git rev-parse -q --verify --symbolic-full-name HEAD 2>/dev/null)" != "refs/heads/$branch" ]; then
-        git checkout "$branch"
-    fi
-
-    cd - >/dev/null
-done
-
-if [ -e "${manifest%.manifest}.info" ]; then
-    bspfiles_path="$(sed -n -e 's/^bspfiles_path = //p' "${manifest%.manifest}.info")"
+infofn="${manifest%.manifest}.info"
+if [ -e "$infofn" ]; then
+    bspfiles_path="$(sed -n -e 's/^bspfiles_path = //p' "$infofn")"
     if [ -n "$bspfiles_path" ] && [ -e "$scriptdir/$bspfiles_path" ]; then
         rm -f "${bspfiles_path%/*}"
         ln -s "$scriptdir/$bspfiles_path" "${bspfiles_path%/*}"
@@ -174,4 +133,49 @@ for dir in downloads cached-binaries; do
     if [ -e "$scriptdir/$dir" ]; then
         ln -sf "$scriptdir/$dir" . || :
     fi
+done
+
+for manifest; do
+    cat "$manifest" | while read -r checkout_path commit remotes; do
+        if [ ! -d "$checkout_path/.git" ]; then
+            git init "$checkout_path"
+        fi
+
+        cd "$checkout_path"
+        echo "$scriptdir/objects" >.git/objects/info/alternates
+        echo "$commit" >.git/shallow
+
+        echo "$remotes" | tr '\t' '\n' | while IFS== read -r name url; do
+            if [ -n "$name" ]; then
+                if git remote | grep -qxF "$name"; then
+                    git remote set-url "$name" "$url"
+                else
+                    git remote add "$name" "$url"
+                fi
+            fi
+        done
+
+        # Create branches for all manifests, for reference
+        manifestdir="$(dirname "$manifest")"
+        for otherfn in "$manifestdir/"*.manifest; do
+            while read -r other_checkout_path other_commit _; do
+                if [ "$other_checkout_path" = "$checkout_path" ]; then
+                    branch="$(basename "${otherfn%.manifest}")"
+                    if ! git rev-parse -q --verify "refs/heads/$branch" >/dev/null; then
+                        git update-ref "refs/heads/$branch" "$other_commit"
+                    fi
+                    echo "$other_commit" >>.git/shallow
+                fi
+            done <"$otherfn"
+        done
+        branch="$(basename "${manifest%.manifest}")"
+        if ! git rev-parse -q --verify "refs/heads/$branch" >/dev/null; then
+            git update-ref "refs/heads/$branch" "$commit"
+        fi
+        if [ "$(git rev-parse -q --verify --symbolic-full-name HEAD 2>/dev/null)" != "refs/heads/$branch" ]; then
+            git checkout "$branch"
+        fi
+
+        cd - >/dev/null
+    done
 done
