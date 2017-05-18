@@ -226,9 +226,9 @@ setup_builddir () {
     TEMPLATECONF=
     MACHINE=$1
     if [ -n "$MACHINE" ]; then
-        if [ -e $MELDIR/$MACHINE/*/binary ]; then
+        if [ -e $MELDIR/$MACHINE/binary ]; then
             # User specified machine and we have the binary content for this BSP
-            TEMPLATECONF=$(echo $MELDIR/$MACHINE/*/conf)
+            TEMPLATECONF=$MELDIR/$MACHINE/conf
         fi
     else
         if [ -e "$BUILDDIR/conf/local.conf" ]; then
@@ -237,9 +237,9 @@ setup_builddir () {
 
         if [ ! -e $BUILDDIR/conf/local.conf -o ! -e $BUILDDIR/conf/bblayers.conf ] || [ -z "$MACHINE" ]; then
             tmpfile="$(mktemp -t "${0##*/}.XXXXX")"
-            ls -1d $MELDIR/*/*/binary 2>/dev/null | sed "s,^$MELDIR/,,; s,/[^/]*/binary$,," | \
+            ls -1d $MELDIR/*/binary 2>/dev/null | sed "s,^$MELDIR/,,; s,/binary$,," | \
                 while read machine; do
-                    if [ ! -e $MELDIR/$machine/*/conf/local.conf.sample ]; then
+                    if [ ! -e "$MELDIR/$machine/conf/local.conf.sample" ]; then
                         continue
                     fi
                     echo "$machine"
@@ -250,7 +250,7 @@ setup_builddir () {
                 echo >&2 "Error: no installed MEL BSP, please specify MACHINE"
                 return 1
             else
-                TEMPLATECONF=$(echo $MELDIR/$MACHINE/*/conf)
+                TEMPLATECONF=$MELDIR/$MACHINE/conf
             fi
         fi
     fi
