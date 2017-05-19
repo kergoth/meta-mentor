@@ -23,6 +23,11 @@ MANIFEST_NAME ?= "${DISTRO}-${PDK_DISTRO_VERSION}-${MACHINE}"
 BSPFILES_INSTALL_PATH = "${MACHINE}/${PDK_DISTRO_VERSION}"
 GET_REMOTES_HOOK ?= ""
 
+# For our forks, also point an 'upstream' remote at upstream
+UPSTREAM_URL = ""
+UPSTREAM_URL_poky = "git://git.yoctoproject.org/poky.git"
+UPSTREAM_URL_bitbake = "https://github.com/openembedded/bitbake"
+UPSTREAM_URL_openembedded-core = "https://github.com/openembedded/openembedded-core"
 MENTOR_FORKED_REPOS ?= "poky bitbake openembedded-core"
 MEL_PUBLIC_GITHUB_REPOS ?= "meta-mentor meta-sourcery ${MENTOR_FORKED_REPOS}"
 
@@ -31,15 +36,29 @@ def mel_get_remotes(subdir, d):
     are considered private, so no remote is included.
     """
     url = bb.process.run(['git', 'config', 'remote.origin.url'], cwd=subdir)[0].rstrip()
-    if url:
-        test_url = url.replace('.git', '')
-        if 'MentorEmbedded' in test_url and not any(test_url.endswith('/' + i) for i in d.getVar('MEL_PUBLIC_GITHUB_REPOS').split()):
+    if not url:
+        return None
+
+    remotes = {'origin': url}
+    test_url = url.replace('.git', '')
+    public_repos = d.getVar('MEL_PUBLIC_GITHUB_REPOS').split()
+    if 'MentorEmbedded' in test_url:
+        if not any(test_url.endswith('/' + i) for i in public_repos):
             # Private github repo
             return None
-        elif 'mentor.com' in url or 'mentorg.com' in url:
-            # Internal repo
-            return None
-        return {'origin': url}
+        else:
+            forked_repos = d.getVar('MENTOR_FORKED_REPOS').split()
+            for f in forked_repos:
+                if test_url.endswith('/' + f):
+                    upstream = d.getVar('UPSTREAM_URL_%s' % f)
+                    if upstream:
+                        remotes['upstream'] = upstream
+                        break
+    elif 'mentor.com' in test_url or 'mentorg.com' in test_url:
+        # Internal repo
+        return None
+
+    return remotes
 
 GET_REMOTES_HOOK_mel ?= "mel_get_remotes"
 
