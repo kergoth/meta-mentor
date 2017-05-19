@@ -21,27 +21,27 @@ INDIVIDUAL_MANIFEST_LAYERS ?= " \
 PDK_DISTRO_VERSION ?= "${DISTRO_VERSION}"
 MANIFEST_NAME ?= "${DISTRO}-${PDK_DISTRO_VERSION}-${MACHINE}"
 BSPFILES_INSTALL_PATH = "${MACHINE}/${PDK_DISTRO_VERSION}"
-INCLUDE_REMOTE_HOOK ?= ""
+GET_REMOTES_HOOK ?= ""
 
-MEL_PUBLIC_GITHUB_REPOS = "meta-mentor meta-sourcery poky bitbake openembedded-core"
+MENTOR_FORKED_REPOS ?= "poky bitbake openembedded-core"
+MEL_PUBLIC_GITHUB_REPOS ?= "meta-mentor meta-sourcery ${MENTOR_FORKED_REPOS}"
 
-def mel_should_include_remote(subdir, d):
+def mel_get_remotes(subdir, d):
     """Any non-public github repo or url including a mentor domain
     are considered private, so no remote is included.
     """
     url = bb.process.run(['git', 'config', 'remote.origin.url'], cwd=subdir)[0].rstrip()
     if url:
-        url = url.replace('.git', '')
-        if 'MentorEmbedded' in url and not any(url.endswith('/' + i) for i in d.getVar('MEL_PUBLIC_GITHUB_REPOS').split()):
+        test_url = url.replace('.git', '')
+        if 'MentorEmbedded' in test_url and not any(test_url.endswith('/' + i) for i in d.getVar('MEL_PUBLIC_GITHUB_REPOS').split()):
             # Private github repo
-            return False
+            return None
         elif 'mentor.com' in url or 'mentorg.com' in url:
             # Internal repo
-            return False
-        return True
-    return False
+            return None
+        return {'origin': url}
 
-INCLUDE_REMOTE_HOOK_mel ?= "mel_should_include_remote"
+GET_REMOTES_HOOK_mel ?= "mel_get_remotes"
 
 python do_archive_mel_layers () {
     """Archive the layers used to build, as git pack files, with a manifest."""
@@ -60,13 +60,13 @@ python do_archive_mel_layers () {
     indiv_only = d.getVar('SUBLAYERS_INDIVIDUAL_ONLY').split()
     indiv_only_toplevel = d.getVar('SUBLAYERS_INDIVIDUAL_ONLY_TOPLEVEL').split()
     indiv_manifests = d.getVar('INDIVIDUAL_MANIFEST_LAYERS').split()
-    include_remote_hook = d.getVar('INCLUDE_REMOTE_HOOK')
-    if include_remote_hook:
-        should_include_remote = bb.utils.get_context().get(include_remote_hook)
-        if not should_include_remote:
-            bb.fatal('Hook function specified in INCLUDE_REMOTE_HOOK (`%s`) does not exist' % include_remote_hook)
+    get_remotes_hook = d.getVar('GET_REMOTES_HOOK')
+    if get_remotes_hook:
+        get_remotes = bb.utils.get_context().get(get_remotes_hook)
+        if not get_remotes:
+            bb.fatal('Hook function specified in GET_REMOTES_HOOK (`%s`) does not exist' % get_remotes_hook)
     else:
-        should_include_remote = None
+        get_remotes = None
 
     layernames = {}
     for layername in d.getVar('BBFILE_COLLECTIONS').split():
@@ -112,18 +112,20 @@ python do_archive_mel_layers () {
 
     manifestdata = collections.defaultdict(list)
     for subdir, path in sorted(to_archive):
-        if should_include_remote:
-            include_remote = should_include_remote(subdir, d)
-            if not include_remote:
-                bb.warn('Skipping remote for %s' % path)
+        pack_base, head = git_archive(subdir, objdir, message)
+        if get_remotes:
+            remotes = get_remotes(subdir, d) or {}
         else:
-            include_remote = True
-        pack_base, head, remote = git_archive(subdir, objdir, message, include_remote=include_remote)
+            remotes = {}
+
+        if not remotes:
+            bb.warn('Skipping remotes for %s' % path)
+
         if subdir in indiv_manifest_dirs:
             fn = d.expand('%s/extra/${MANIFEST_NAME}-%s.manifest' % (mandir, path.replace('/', '_')))
         else:
             fn = manifestfn
-        manifestdata[fn].append('\t'.join((path, head, remote)) + '\n')
+        manifestdata[fn].append('\t'.join([path, head] + ['%s=%s' % (k,v) for k,v in remotes.items()]) + '\n')
         bb.process.run(['tar', '-cf', '%s.tar' % pack_base, 'objects/pack/%s.pack' % pack_base, 'objects/pack/%s.idx' % pack_base], cwd=outdir)
 
     infofn = d.expand('%s/${MANIFEST_NAME}.info' % mandir)
@@ -156,11 +158,11 @@ python do_archive_mel_layers () {
     bb.process.run(['chmod', '+x', 'setup-mel'], cwd=workdir)
     bb.process.run(['tar', '-cf', d.expand('%s/${DISTRO}-scripts.tar' % outdir), 'setup-mel'], cwd=workdir)
 }
-do_archive_mel_layers[vardeps] += "${INCLUDE_REMOTE_HOOK}"
+do_archive_mel_layers[vardeps] += "${GET_REMOTES_HOOK}"
 do_archive_mel_layers[vardepsexclude] += "DATE"
 addtask archive_mel_layers after do_patch
 
-def git_archive(subdir, outdir, message=None, *, include_remote=True):
+def git_archive(subdir, outdir, message=None):
     """Create an archive for the specified subdir, holding a single git object
 
     1. Clone or create the repo to a temporary location
@@ -198,11 +200,7 @@ def git_archive(subdir, outdir, message=None, *, include_remote=True):
             'GIT_COMMITTER_NAME': 'Build User',
             'GIT_COMMITTER_EMAIL': 'build_user@build_host',
         }
-        remote = ''
         if parent:
-            if include_remote:
-                remote = bb.process.run(['git', 'config', 'remote.origin.url'], cwd=subdir)[0].rstrip()
-
             # Walk the commits until we get a date, as merges don't seem to
             # report a commit date.
             cdate, distance = None, 0
@@ -234,5 +232,5 @@ def git_archive(subdir, outdir, message=None, *, include_remote=True):
         packfiles = glob.glob(os.path.join(packdir, 'pack-*'))
         base, ext = os.path.splitext(os.path.basename(packfiles[0]))
         bb.process.run(['cp', '-f'] + packfiles + [outdir])
-        return base, head, remote
+        return base, head
 
