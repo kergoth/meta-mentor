@@ -94,7 +94,7 @@ fi
 {
     cat "$manifest"
     cat "$scriptdir/manifests/extra/"*.manifest 2>/dev/null || :
-} | sort -u | while read -r checkout_path commit remote; do
+} | sort -u | while read -r checkout_path commit remotes; do
     if [ ! -d "$checkout_path/.git" ]; then
         git init "$checkout_path"
     fi
@@ -102,13 +102,16 @@ fi
     cd "$checkout_path"
     echo "$scriptdir/objects" >.git/objects/info/alternates
     echo "$commit" >.git/shallow
-    if [ -n "$remote" ]; then
-        if git remote | grep -qxF origin; then
-            git remote set-url origin "$remote"
-        else
-            git remote add origin "$remote"
+
+    echo "$remotes" | tr '\t' '\n' | while IFS== read -r name url; do
+        if [ -n "$name" ]; then
+            if git remote | grep -qxF "$name"; then
+                git remote set-url "$name" "$url"
+            else
+                git remote add "$name" "$url"
+            fi
         fi
-    fi
+    done
 
     # Create branches for all manifests, for reference
     for otherfn in "$scriptdir/manifests/"*.manifest; do
