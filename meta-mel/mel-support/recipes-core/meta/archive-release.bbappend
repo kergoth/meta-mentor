@@ -394,6 +394,59 @@ python do_archive_mel_downloads () {
 }
 do_archive_mel_downloads[depends] += "${@'${RELEASE_IMAGE}:${FETCHALL_TASK}' if '${RELEASE_IMAGE}' else ''}"
 
+ARCHIVE_DOWNLOAD_SIZE_CHECK ?= "\
+    WARN,gitshallow*,200M \
+    WARN,*,400M \
+"
+python check_download_sanity () {
+    from fnmatch import fnmatch
+    from bb.monitordisk import convertGMK
+
+    check_items = d.getVar('ARCHIVE_DOWNLOAD_SIZE_CHECK').split()
+    checks = []
+    for item in check_items:
+        try:
+            mode, pattern, thresholdgmk = item.split(',')
+            threshold = convertGMK(thresholdgmk)
+        except ValueError:
+            bb.fatal('check_download_sanity: invalid entry `{}` in ARCHIVE_DOWNLOAD_SIZE_CHECK'.format(item))
+        else:
+            if mode not in ('WARN', 'ERROR', 'FATAL'):
+                bb.fatal('check_download_sanity: invalid mode `{}` in ARCHIVE_DOWNLOAD_SIZE_CHECK'.format(mode))
+
+            checks.append((mode, pattern, threshold, thresholdgmk))
+
+    dl_by_layer_fn = d.getVar('ARCHIVE_RELEASE_DL_BY_LAYER_PATH')
+    with open(dl_by_layer_fn, 'r') as f:
+        lines = f.readlines()
+
+    for layer_name, dl_path in (l.rstrip('\n').split('\t', 1) for l in lines):
+        try:
+            st = os.stat(dl_path)
+        except OSError:
+            continue
+        basepath = os.path.basename(dl_path)
+
+        for mode, pattern, threshold, thresholdgmk in checks:
+            if fnmatch(basepath, pattern) and st.st_size >= threshold:
+                msg = 'Download {} size ({}) exceeds configured threshold of {} for {}'.format(basepath, sizeof_fmt(st.st_size), sizeof_fmt(threshold), pattern)
+                if mode == 'WARN':
+                    bb.warn(msg)
+                elif mode == 'ERROR':
+                    bb.error(msg)
+                elif mode == 'FATAL':
+                    bb.fatal(msg)
+                break
+}
+do_archive_mel_downloads[postfuncs] += "check_download_sanity"
+
+def sizeof_fmt(num, suffix='B'):
+    for unit in ['','Ki','Mi','Gi','Ti','Pi','Ei','Zi']:
+        if abs(num) < 1024.0:
+            return "%3.1f%s%s" % (num, unit, suffix)
+        num /= 1024.0
+    return "%.1f%s%s" % (num, 'Yi', suffix)
+
 archive_uninative_downloads () {
     # Ensure that uninative downloads are in ARCHIVE_RELEASE_DL_DIR, since
     # they're listed in the manifest

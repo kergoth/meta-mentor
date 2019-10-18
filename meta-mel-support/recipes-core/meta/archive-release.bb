@@ -335,7 +335,6 @@ do_archive_downloads () {
         cd - >/dev/null
         release_tar -chf ${MACHINE}-downloads.tar downloads/
     fi
-    rm -rf downloads layermap.txt
 }
 # Workaround shell function dependency issue
 do_archive_downloads[vardeps] += "repo_root"
