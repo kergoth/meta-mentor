@@ -461,7 +461,6 @@ def determine_layers(cmdline_opts):
                     else:
                         found.update(layers)
 
-            found.difference_update(configured_layers)
             s.set_layer_status(found)
             configured_layers |= found
 
